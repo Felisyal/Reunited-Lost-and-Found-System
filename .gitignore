@@ -1,0 +1,15 @@
+# API credentials
+config/api_config.php
+
+# Composer dependencies
+vendor/
+
+# Environment files
+.env
+.env.*
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
