@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/../vendor/autoload.php';
 
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+$dotenv->load();
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -55,8 +58,8 @@ function sendReadyForClaimEmail($toEmail, $toName, $itemName) {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'reunited.lostandfound@gmail.com';   // TODO: palitan ng actual gmail
-        $mail->Password   = 'cjyflgpfpakujnbj';        // TODO: Gmail App Password
+        $mail->Username   = $_ENV['SMTP_USERNAME']; 
+        $mail->Password   = $mail->Password = $_ENV['SMTP_PASSWORD'];       
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
@@ -122,8 +125,8 @@ function sendMatchedToFinderEmail($toEmail, $toName, $itemName) {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'reunited.lostandfound@gmail.com';  
-        $mail->Password   = 'cjyflgpfpakujnbj';        
+        $mail->Username   = $_ENV['SMTP_USERNAME'];
+        $mail->Password   = $_ENV['SMTP_PASSWORD']; 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
@@ -168,8 +171,8 @@ function sendStyledEmail($toEmail, $toName, $subject, $title, $bodyHtml) {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'reunited.lostandfound@gmail.com';
-        $mail->Password   = 'cjyflgpfpakujnbj';
+        $mail->Username   = $_ENV['SMTP_USERNAME'];
+        $mail->Password   = $_ENV['SMTP_PASSWORD'];
 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;

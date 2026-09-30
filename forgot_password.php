@@ -3,10 +3,12 @@ date_default_timezone_set('Asia/Manila');
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+use Dotenv\Dotenv;
 
-require __DIR__ . '/vendor/phpmailer/phpmailer/src/PHPMailer.php';
-require __DIR__ . '/vendor/phpmailer/phpmailer/src/SMTP.php';
-require __DIR__ . '/vendor/phpmailer/phpmailer/src/Exception.php';
+require __DIR__ . '/vendor/autoload.php';
+
+$dotenv = Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 
 
 $host = "localhost";
@@ -73,8 +75,8 @@ if ($result->num_rows > 0) {
         $mail->SMTPDebug = 2;
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'reunited.lostandfound@gmail.com';
-        $mail->Password   = 'cjyflgpfpakujnbj';
+        $mail->Username   = $_ENV['SMTP_USERNAME'];
+        $mail->Password   = $_ENV['SMTP_PASSWORD'];
 
         $mail->SMTPSecure = 'tls';
         $mail->Port       = 587;

@@ -148,16 +148,5 @@ Actual Photo – Upload a clear photo of the item. For verification, the image s
     "answer" => "Your item was matched because the AI found strong similarities between an approved lost report and a found report. The matching process compares the item name, description, category, and location to identify possible matches. The similarity percentage is only a recommendation, and the administrator must still verify and approve the match before the item becomes Ready for Claim."
 ],
 
-[
-    "keywords" => [
-        "who is the founder",
-        "who created the reunited",
-        "who is developer",
-        "who is creator",
-        "who is the owner"
-    ],
-    "answer" => "Ahl Satingin ang nag iisang malakas na gumawa ng system na'to, wala ng iba pa"
-]
-
 
 ];
