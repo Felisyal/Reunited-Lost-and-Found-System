@@ -6,6 +6,25 @@ $dbUser = "root";
 $dbPass = "";
 $dbName = "reunited_db";
 
+function passwordError($password) {
+    if (strlen($password) < 8) {
+        return "Password must be at least 8 characters.";
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return "Password must include an uppercase letter.";
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        return "Password must include a lowercase letter.";
+    }
+    if (!preg_match('/[0-9]/', $password)) {
+        return "Password must include a number.";
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        return "Password must include a special character (example: _ ! @ #).";
+    }
+    return '';
+}
+
 
 if (isset($_GET['logout']) && $_GET['logout'] == 1) {
     session_unset();
@@ -88,13 +107,11 @@ if (!empty($_SESSION['staff_employee_id'])) {
     exit;
 }
 
-// ─── SUCCESS MESSAGE ──────────────────────────────────────────────────────────
 $successMessage = '';
 if (isset($_GET['register']) && $_GET['register'] === 'success') {
     $successMessage = "Registration successful! You can now log in.";
 }
 
-// ─── STUDENT LOGIN ────────────────────────────────────────────────────────────
 $studentIdError = $studentPasswordError = "";
 if (isset($_POST['student_submit'])) {
     $studentId       = trim($_POST['student_id'] ?? '');
@@ -309,7 +326,9 @@ if (isset($_POST['student_register_submit'])) {
     $confirm       = $_POST['confirm_student'];
 
     if ($password !== $confirm) {
-        $studentRegisterError = "Passwords do not match.";
+    $studentRegisterError = "Passwords do not match.";
+    } elseif ($err = passwordError($password)) {
+        $studentRegisterError = $err;
     } else {
 
         $checkEmail = $conn->prepare("SELECT id FROM student_register WHERE student_email = ?");
@@ -364,12 +383,16 @@ if (isset($_POST['admin_register_submit'])) {
     $confirm     = $_POST['confirm_admin'];
     $reg_code    = trim($_POST['admin_reg_code']);
 
-    $SECRET_CODE = "PUPPQ_03-24-2011!!!";
+    $codeStmt = $conn->prepare("SELECT setting_value FROM admin_code WHERE setting_key = 'admin_reg_code_hash'");
+    $codeStmt->execute();
+    $codeRow = $codeStmt->get_result()->fetch_assoc();
 
-    if ($reg_code !== $SECRET_CODE) {
+    if (!$codeRow || !password_verify($reg_code, $codeRow['setting_value'])) {
         $adminRegisterError = "Invalid registration code. Contact the system administrator.";
     } elseif ($password !== $confirm) {
-        $adminRegisterError = "Passwords do not match.";
+    $adminRegisterError = "Passwords do not match.";
+    } elseif ($err = passwordError($password)) {
+        $adminRegisterError = $err;
     } else {
 
         $checkEmail = $conn->prepare("SELECT id FROM admin_register WHERE admin_email = ?");
@@ -418,7 +441,9 @@ if (isset($_POST['staff_register_submit'])) {
     $confirm           = $_POST['confirm_staff'];
 
     if ($password !== $confirm) {
-        $staffRegisterError = "Passwords do not match.";
+    $staffRegisterError = "Passwords do not match.";
+    } elseif ($err = passwordError($password)) {
+        $staffRegisterError = $err;
     } else {
 
         $checkEmail = $conn->prepare("SELECT id FROM staff_register WHERE staff_email = ?");
@@ -785,7 +810,7 @@ if (!empty($studentPasswordError)) {
             <label>Email Address</label>
             <input type="email" name="email_admin" placeholder="admin@iskolarngbayan.pup.edu.ph" required>
             <label>Password</label>
-            <input type="password" name="admin_register_password" placeholder="Password" required>
+            <input type="password" name="admin_register_password" placeholder="Password" minlength="8" required>
             <label>Confirm Password</label>
             <input type="password" name="confirm_admin" placeholder="Confirm Password" required>
             <label>Admin Registration Code</label>
@@ -807,7 +832,7 @@ if (!empty($studentPasswordError)) {
             <label>University Email</label>
             <input type="email" name="student_email" placeholder="john.doe@iskolarngbayan.pup.edu.ph" required>
             <label>Password</label>
-            <input type="password" name="student_register_password" placeholder="Password" required>
+            <input type="password" name="student_register_password" placeholder="Password" minlength="8" required>
             <label>Confirm Password</label>
             <input type="password" name="confirm_student" placeholder="Confirm Password" required>
             <button type="submit" name="student_register_submit">Create Student Account</button>
@@ -835,7 +860,7 @@ if (!empty($studentPasswordError)) {
                 <option value="OA">Office Administration</option>
             </select>
             <label>Password*</label>
-            <input type="password" name="staff_register_password" placeholder="Password" required>
+            <input type="password" name="staff_register_password" placeholder="Password" minlength="8" required>
             <label>Confirm Password*</label>
             <input type="password" name="confirm_staff" placeholder="Confirm Password" required>
             <button type="submit" name="staff_register_submit">Create Staff/Faculty Account</button>
@@ -878,6 +903,35 @@ if (!empty($studentPasswordError)) {
 
 
 <script src="script.js"></script>
+
+<?php if (!empty($successMessage)): ?>
+<div id="rtToast" class="rt-toast" role="status">
+    <div class="r-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="5 12 10 17 19 7"></polyline>
+        </svg>
+    </div>
+    <div class="rt-body">
+        <strong>Success</strong>
+        <span><?php echo htmlspecialchars($successMessage); ?></span>
+    </div>
+    <button type="button" class="rt-close" onclick="hideRtToast()" aria-label="Close">&times;</button>
+    <div class="rt-progress"></div>
+</div>
+<script>
+    function hideRtToast() {
+        var t = document.getElementById('rtToast');
+        if (t) t.classList.remove('show');
+    }
+    window.addEventListener('load', function () {
+        var t = document.getElementById('rtToast');
+        setTimeout(function () { t.classList.add('show'); }, 100);
+        setTimeout(hideRtToast, 5000);
+        history.replaceState(null, '', 'index.php');
+    });
+</script>
+<?php endif; ?>
+
 
 <?php if (!empty($registerAlertMessage)): ?>
 <script>
