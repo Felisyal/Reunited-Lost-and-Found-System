@@ -7510,6 +7510,7 @@ input[type="file"] {
     opacity: 1;
 }
 
+
 .rt-toast {
     position: fixed;
     top: 24px;
@@ -7552,6 +7553,7 @@ input[type="file"] {
 }
 .rt-toast.show .rt-progress { animation: rtTimer 5s linear forwards; }
 @keyframes rtTimer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
 
 .msg.bot {
     white-space: pre-wrap;
