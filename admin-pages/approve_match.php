@@ -2,6 +2,7 @@
 session_start();
 header('Content-Type: application/json');
 require_once 'sync_functions.php';
+require_once 'mailer.php';
 
 $conn = new mysqli("localhost", "root", "", "reunited_db");
 if ($conn->connect_error) {

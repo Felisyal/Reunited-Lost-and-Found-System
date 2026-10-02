@@ -59,7 +59,7 @@ function sendReadyForClaimEmail($toEmail, $toName, $itemName) {
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
         $mail->Username   = $_ENV['SMTP_USERNAME']; 
-        $mail->Password   = $mail->Password = $_ENV['SMTP_PASSWORD'];       
+        $mail->Password   = $_ENV['SMTP_PASSWORD'];       
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
