@@ -19,6 +19,15 @@ if (empty($_SESSION['admin_id'])) {
     header("Location: index.php");
     exit;
 }
+
+$adminName = $_SESSION['admin_name'];
+$adminID   = $_SESSION['admin_id'];
+
+$nameParts = explode(" ", $adminName);
+$firstInitial = substr($nameParts[0], 0, 1);
+$lastInitial = substr(end($nameParts), 0, 1);
+$initials = strtoupper($firstInitial . $lastInitial);
+
 ?>
 
 <!DOCTYPE html>
@@ -99,7 +108,13 @@ if (empty($_SESSION['admin_id'])) {
     <header>
         <nav class="nav-content">
             <button class="toggle-btn" id="toggleBtn"><img src="image/menu.png" alt="menu"></button> 
-            
+            <div class="profile-header">
+                <div class="profile-avatar"><?php echo htmlspecialchars($initials); ?></div>
+                <div class="profile-info">
+                    <span class="profile-name"><?php echo htmlspecialchars($adminName); ?></span>
+                    <span class="profile-id">Admin ID: <?php echo htmlspecialchars($adminID); ?></span>
+                </div>
+            </div>
         </nav>
     </header>
 

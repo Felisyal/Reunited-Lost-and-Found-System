@@ -1,6 +1,14 @@
 <?php
 date_default_timezone_set('Asia/Manila');
-session_start(); 
+
+ini_set('session.use_strict_mode', 1);
+session_set_cookie_params([
+    'httponly' => true,
+    'samesite' => 'Lax',
+    'secure'   => !empty($_SERVER['HTTPS']),
+]);
+session_start();
+
 $host = "localhost";
 $dbUser = "root";
 $dbPass = "";
@@ -25,13 +33,128 @@ function passwordError($password) {
     return '';
 }
 
+// ─── REMEMBER ME HELPERS ──────────────────────────────────────────────────────
+
+function setRememberCookie($value, $expires) {
+    setcookie('remember_me', $value, [
+        'expires'  => $expires,
+        'path'     => '/',
+        'secure'   => !empty($_SERVER['HTTPS']),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+function issueRememberToken($conn, $role, $userId) {
+    $selector  = bin2hex(random_bytes(12));   // 24 hex chars
+    $validator = bin2hex(random_bytes(32));
+    $hash      = hash('sha256', $validator);
+    $expires   = time() + 30 * 24 * 60 * 60;
+    $expiresAt = date('Y-m-d H:i:s', $expires);
+
+    $stmt = $conn->prepare(
+        "INSERT INTO remember_tokens (role, user_id, selector, token_hash, expires_at)
+         VALUES (?, ?, ?, ?, ?)"
+    );
+    $stmt->bind_param("sisss", $role, $userId, $selector, $hash, $expiresAt);
+    $stmt->execute();
+
+    setRememberCookie($selector . ':' . $validator, $expires);
+}
+
+function clearRememberToken($conn) {
+    if (!empty($_COOKIE['remember_me'])) {
+        $selector = explode(':', $_COOKIE['remember_me'], 2)[0];
+        $stmt = $conn->prepare("DELETE FROM remember_tokens WHERE selector = ?");
+        $stmt->bind_param("s", $selector);
+        $stmt->execute();
+    }
+    setRememberCookie('', time() - 3600);
+}
+
+function autoLoginFromCookie($conn) {
+    if (empty($_COOKIE['remember_me'])) return;
+
+    $parts = explode(':', $_COOKIE['remember_me'], 2);
+    if (count($parts) !== 2) { setRememberCookie('', time() - 3600); return; }
+    [$selector, $validator] = $parts;
+
+    $now  = date('Y-m-d H:i:s');
+    $stmt = $conn->prepare("SELECT * FROM remember_tokens WHERE selector = ? AND expires_at > ?");
+    $stmt->bind_param("ss", $selector, $now);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+
+    if (!$row || !hash_equals($row['token_hash'], hash('sha256', $validator))) {
+        if ($row) { // selector matched pero mali ang secret: posibleng ninakaw, burahin
+            $del = $conn->prepare("DELETE FROM remember_tokens WHERE id = ?");
+            $del->bind_param("i", $row['id']);
+            $del->execute();
+        }
+        setRememberCookie('', time() - 3600);
+        return;
+    }
+
+    // Table name galing sa fixed map, hindi sa user input
+    $tables = ['student' => 'student_register', 'admin' => 'admin_register', 'staff' => 'staff_register'];
+    $table  = $tables[$row['role']];
+
+    $stmt = $conn->prepare("SELECT * FROM $table WHERE id = ?");
+    $stmt->bind_param("i", $row['user_id']);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+
+    $locked = $user && $user['lockout_until'] && strtotime($user['lockout_until']) > time();
+    if (!$user || $user['status'] !== 'Active' || $locked) {
+        clearRememberToken($conn);
+        return;
+    }
+
+    session_regenerate_id(true);
+
+    if ($row['role'] === 'student') {
+        $_SESSION['student_id']    = $user['student_id'];
+        $_SESSION['student_name']  = $user['student_name'];
+        $_SESSION['student_db_id'] = $user['id'];
+        $_SESSION['user_type']     = 'student';
+        $dest = 'student-portal.php';
+    } elseif ($row['role'] === 'admin') {
+        $_SESSION['admin_id']   = $user['id'];
+        $_SESSION['admin_name'] = $user['admin_name'];
+        $_SESSION['user_type']  = 'admin';
+        $dest = 'admin-portal.php';
+    } else {
+        $_SESSION['staff_employee_id'] = $user['staff_employee_id'];
+        $_SESSION['staff_name']        = $user['staff_name'];
+        $_SESSION['staff_email']       = $user['staff_email'];
+        $_SESSION['user_type']         = 'staff';
+        $dest = 'staff-faculty.php';
+    }
+
+    // Rotate: isang beses lang magagamit ang lumang token, tapos papalitan
+    $del = $conn->prepare("DELETE FROM remember_tokens WHERE id = ?");
+    $del->bind_param("i", $row['id']);
+    $del->execute();
+    issueRememberToken($conn, $row['role'], $user['id']);
+
+    header("Location: $dest");
+    exit;
+}
+
+// ─── DB CONNECTION (nasa itaas na dahil kailangan ng logout) ──────────────────
+$conn = new mysqli($host, $dbUser, $dbPass, $dbName);
+if ($conn->connect_error) {
+    die("Service unavailable.");
+}
 
 if (isset($_GET['logout']) && $_GET['logout'] == 1) {
+    clearRememberToken($conn);
+    // linisin ang mga lumang insecure na cookie
+    foreach (['remember_student', 'remember_admin', 'remember_staff'] as $c) {
+        setcookie($c, '', time() - 3600, '/');
+    }
     session_unset();
     session_destroy();
-    setcookie('remember_student', '', time() - 3600, '/');
-    setcookie('remember_admin',   '', time() - 3600, '/');
-    setcookie('remember_staff',   '', time() - 3600, '/');
     header("Location: index.php");
     exit;
 }
@@ -40,57 +163,13 @@ header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
 
-$conn = new mysqli($host, $dbUser, $dbPass, $dbName);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Burahin ang mga lumang cookie, hindi na sila pinagkakatiwalaan
+foreach (['remember_student', 'remember_admin', 'remember_staff'] as $c) {
+    if (isset($_COOKIE[$c])) setcookie($c, '', time() - 3600, '/');
 }
 
-
-if (empty($_SESSION['student_id']) && isset($_COOKIE['remember_student'])) {
-    $cookieId = $_COOKIE['remember_student'];
-    $stmt = $conn->prepare("SELECT * FROM student_register WHERE student_id = ?");
-    $stmt->bind_param("s", $cookieId);
-    $stmt->execute();
-    $student = $stmt->get_result()->fetch_assoc();
-    if ($student && $student['status'] === 'Active') {
-        $_SESSION['student_id']    = $student['student_id'];
-        $_SESSION['student_name']  = $student['student_name'];
-        $_SESSION['student_db_id'] = $student['id'];
-        $_SESSION['user_type']     = 'student';
-        header("Location: student-portal.php");
-        exit;
-    }
-}
-
-if (empty($_SESSION['admin_id']) && isset($_COOKIE['remember_admin'])) {
-    $cookieEmail = $_COOKIE['remember_admin'];
-    $stmt = $conn->prepare("SELECT * FROM admin_register WHERE admin_email = ?");
-    $stmt->bind_param("s", $cookieEmail);
-    $stmt->execute();
-    $admin = $stmt->get_result()->fetch_assoc();
-    if ($admin && $admin['status'] === 'Active') {
-        $_SESSION['admin_id']   = $admin['id'];
-        $_SESSION['admin_name'] = $admin['admin_name'];
-        $_SESSION['user_type']  = 'admin';
-        header("Location: admin-portal.php");
-        exit;
-    }
-}
-
-if (empty($_SESSION['staff_employee_id']) && isset($_COOKIE['remember_staff'])) {
-    $cookieEmail = $_COOKIE['remember_staff'];
-    $stmt = $conn->prepare("SELECT * FROM staff_register WHERE staff_email = ?");
-    $stmt->bind_param("s", $cookieEmail);
-    $stmt->execute();
-    $staff = $stmt->get_result()->fetch_assoc();
-    if ($staff && $staff['status'] === 'Active') {
-        $_SESSION['staff_employee_id'] = $staff['staff_employee_id'];
-        $_SESSION['staff_name']        = $staff['staff_name'];
-        $_SESSION['user_type']         = 'staff';
-        $_SESSION['staff_email']       = $staff['staff_email'];
-        header("Location: staff-faculty.php");
-        exit;
-    }
+if (empty($_SESSION['student_id']) && empty($_SESSION['admin_id']) && empty($_SESSION['staff_employee_id'])) {
+    autoLoginFromCookie($conn);
 }
 
 // ─── ALREADY LOGGED IN REDIRECTS ──────────────────────────────────────────────
@@ -140,13 +219,15 @@ if (isset($_POST['student_submit'])) {
                 $reset->bind_param("i", $student['id']);
                 $reset->execute();
 
+                session_regenerate_id(true);
+
                 $_SESSION['student_id']    = $student['student_id'];
                 $_SESSION['student_name']  = $student['student_name'];
                 $_SESSION['student_db_id'] = $student['id'];
                 $_SESSION['user_type']     = 'student';
 
                 if (isset($_POST['remember_me'])) {
-                    setcookie('remember_student', $student['student_id'], time() + (30 * 24 * 60 * 60), '/');
+                    issueRememberToken($conn, 'student', $student['id']);
                 }
 
                 header("Location: student-portal.php");
@@ -210,13 +291,15 @@ if (isset($_POST['staff_submit'])) {
                 $reset->bind_param("i", $staff['id']);
                 $reset->execute();
 
+                session_regenerate_id(true);
+
                 $_SESSION['staff_employee_id'] = $staff['staff_employee_id'];
                 $_SESSION['staff_name']        = $staff['staff_name'];
                 $_SESSION['user_type']         = 'staff';
                 $_SESSION['staff_email']       = $staff['staff_email'];
 
                 if (isset($_POST['remember_me'])) {
-                    setcookie('remember_staff', $staff['staff_email'], time() + (30 * 24 * 60 * 60), '/');
+                    issueRememberToken($conn, 'staff', $staff['id']);
                 }
 
                 header("Location: staff-faculty.php");
@@ -277,12 +360,14 @@ if (isset($_POST['admin_submit'])) {
                         $reset->bind_param("i", $admin['id']);
                         $reset->execute();
 
+                        session_regenerate_id(true);
+
                         $_SESSION['admin_id']   = $admin['id'];
                         $_SESSION['admin_name'] = $admin['admin_name'];
                         $_SESSION['user_type']  = 'admin';
 
                         if (isset($_POST['remember_me'])) {
-                            setcookie('remember_admin', $admin['admin_email'], time() + (30 * 24 * 60 * 60), '/');
+                            issueRememberToken($conn, 'admin', $admin['id']);
                         }
 
                         header("Location: admin-portal.php");

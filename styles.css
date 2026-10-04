@@ -211,7 +211,7 @@
         cursor: pointer;
         transition: 0.3s ease;
     }
-    
+
     .login-form button:hover {
         background: #8c1919;
     }
@@ -576,6 +576,10 @@
   padding: 10px;
   padding-bottom: 30px;
   border-bottom: 1px solid #dddddd;
+  justify-content: space-between;
+  display:flex;
+  flex-direction: row;
+  padding-right: 20px;
 }
 
 
