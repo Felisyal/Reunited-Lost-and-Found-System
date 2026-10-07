@@ -91,12 +91,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if ($stmt->execute()) {
         $itemType = ($type === 'Found') ? 'found' : 'lost';
         syncReportStatus($conn, $id, $itemType, $status);
-        
-        echo json_encode(["success" => true]);
-    } else {
-        echo json_encode(["success" => false, "error" => $stmt->error]);
-    }
 
+        $emailSent = null;
+
+        if ($status === 'Ready for Claim' && $oldStatus !== 'Ready for Claim') {
+
+            if ($type === 'Found') {
+                $q = $conn->prepare("SELECT itemName_found AS name, staff_employee_id AS owner_id FROM found_items WHERE id = ?");
+            } else {
+                $q = $conn->prepare("SELECT item_name AS name, user_id AS owner_id FROM lost_items WHERE id = ?");
+            }
+            $q->bind_param("i", $id);
+            $q->execute();
+            $item = $q->get_result()->fetch_assoc();
+            $q->close();
+
+            if ($item) {
+                $contact = getReporterContact($conn, $item['owner_id']);
+                if ($contact) {
+                    $emailSent = ($type === 'Found')
+                        ? sendMatchedToFinderEmail($contact['email'], $contact['name'], $item['name'])
+                        : sendReadyForClaimEmail($contact['email'], $contact['name'], $item['name']);
+                } else {
+                    error_log("Ready-for-claim email: no contact for owner " . $item['owner_id']);
+                }
+            }
+        }
+
+        echo json_encode(["success" => true, "email_sent" => $emailSent]);
+    }
     exit;
 }
 

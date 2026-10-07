@@ -46,7 +46,7 @@ function setRememberCookie($value, $expires) {
 }
 
 function issueRememberToken($conn, $role, $userId) {
-    $selector  = bin2hex(random_bytes(12));   // 24 hex chars
+    $selector  = bin2hex(random_bytes(12));   
     $validator = bin2hex(random_bytes(32));
     $hash      = hash('sha256', $validator);
     $expires   = time() + 30 * 24 * 60 * 60;
