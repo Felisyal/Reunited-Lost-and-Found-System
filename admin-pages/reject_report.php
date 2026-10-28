@@ -1,10 +1,17 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
 header('Content-Type: application/json');
 
-require_once __DIR__ . '/mailer.php';
+ if (empty($_SESSION['admin_id'])) {
+       echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+       exit;
+   }
 
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+require_once __DIR__ . '/mailer.php';
+require_once dirname(__DIR__) . '/config/audit.php';
+
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     echo json_encode(['success' => false, 'error' => 'DB connection failed']);
@@ -34,6 +41,9 @@ $stmt = $conn->prepare("UPDATE $table SET status = 'Rejected' WHERE id = ?");
 $stmt->bind_param("i", $id);
 
 if ($stmt->execute()) {
+
+logAudit($conn, 'REPORT_REJECTED', $type, $id);
+
     try {
         notifyReportStatus($conn, $type, $id, 'rejected');
     } catch (Throwable $e) {

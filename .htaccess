@@ -1,0 +1,7 @@
+RewriteEngine On
+RewriteCond %{HTTP:X-Forwarded-Proto} =http
+RewriteRule .* - [F,L]
+
+<IfModule mod_headers.c>
+Header always set Strict-Transport-Security "max-age=300"
+</IfModule>

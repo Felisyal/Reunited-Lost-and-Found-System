@@ -1,14 +1,22 @@
-
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+
+if (empty($_SESSION['admin_id'])) {
+    http_response_code(403);
+    exit('Unauthorized');
+}
+
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
+require_once dirname(__DIR__) . '/config/audit.php';
+
 $sql = "
-SELECT 
+SELECT
     c.id,
     c.status,
     c.claimed_at,
@@ -23,27 +31,23 @@ SELECT
 
 FROM claims_table c
 
-LEFT JOIN found_items f 
+LEFT JOIN found_items f
     ON c.item_id = f.id
     AND c.item_type = 'found'
 
-LEFT JOIN lost_items l 
+LEFT JOIN lost_items l
     ON c.item_id = l.id
     AND c.item_type = 'lost'
 
-INNER JOIN student_register s 
+INNER JOIN student_register s
     ON c.student_db_id = s.id
 
 ORDER BY c.claimed_at DESC
 ";
 
-$result = $conn->query($sql);
-
-if (!$result) {
-    die("Query Error: " . $conn->error);
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    header('Content-Type: application/json');
 
     $data = json_decode(file_get_contents("php://input"), true);
 
@@ -51,8 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($data['action'] === 'update_claim') {
 
-            $id = (int)$data['id']; 
+            $id = (int)$data['id'];
             $status = strtolower(trim($data['status']));
+
+            if (!in_array($status, ['pending', 'ready-for-claim', 'claimed'], true)) {
+                echo json_encode(["success" => false, "error" => "Invalid status"]);
+                exit;
+            }
 
             $stmt = $conn->prepare(
                 "UPDATE claims_table SET status=? WHERE id=?"
@@ -61,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("si", $status, $id);
 
             if ($stmt->execute()) {
+                logAudit($conn, 'CLAIM_STATUS_UPDATED', 'claim', $id, "status=$status");
                 echo json_encode(["success" => true]);
             } else {
                 echo json_encode([
@@ -82,9 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt->bind_param("i", $id);
 
-            echo json_encode([
-                "success" => $stmt->execute()
-            ]);
+            $ok = $stmt->execute();
+            if ($ok) logAudit($conn, 'CLAIM_DELETED', 'claim', $id);
+
+            echo json_encode(["success" => $ok]);
 
             exit;
         }
@@ -94,9 +105,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $result = $conn->query($sql);
 
 if (!$result) {
-    die("Query Error: " . $conn->error); 
+    die("Query Error: " . $conn->error);
 }
-
 
 ?>
 
@@ -112,11 +122,11 @@ if (!$result) {
                     <img src="admin-images/search.png">
                     <input type="text" id="search-claim" placeholder="Search by item name or location...">
                 </div>
-                <select id="status-claim" class="select-status"> 
-                    <option value="">All Status</option> 
-                    <option value="pending">Pending</option> 
-                    <option value="ready-for-claim">Ready for Claim</option> 
-                    <option value="claimed">Claimed</option> 
+                <select id="status-claim" class="select-status">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="ready-for-claim">Ready for Claim</option>
+                    <option value="claimed">Claimed</option>
                 </select>
             </div>
         </div>
@@ -135,7 +145,7 @@ if (!$result) {
             <tbody id="claim_users">
             <?php if ($result && $result->num_rows > 0): ?>
                 <?php while ($row = $result->fetch_assoc()): ?>
-                    <?php $status = strtolower(trim($row['status']));?>
+                    <?php $status = strtolower(trim($row['status'])); ?>
                     <tr>
                         <td><?= htmlspecialchars($row['student_name']) ?> </td>
                         <td><?= htmlspecialchars($row['student_id']) ?></td>
@@ -143,7 +153,7 @@ if (!$result) {
                         <td><?= htmlspecialchars($row['claimed_at']) ?> </td>
 
                         <td>
-                            <span 
+                            <span
                                 class="status-badge status-<?= htmlspecialchars($status) ?>"
                                 data-status="<?= htmlspecialchars($status) ?>"
                             >
@@ -173,7 +183,7 @@ if (!$result) {
                         <td class="claim-action-btn">
 
                             <!-- VIEW -->
-                            <button 
+                            <button
                                 onclick="viewClaim(this)"
                                 data-name="<?= htmlspecialchars($row['item_name']) ?>"
                                 data-student="<?= htmlspecialchars($row['student_name']) ?>"
@@ -186,7 +196,7 @@ if (!$result) {
 
 
                             <!-- EDIT -->
-                            <button 
+                            <button
                                 class="edit-claim-btn"
                                 onclick="editClaimAction(this)"
                                 data-id="<?= $row['id'] ?>"
@@ -211,7 +221,7 @@ if (!$result) {
             <?php else: ?>
 
                 <tr>
-                    <td colspan="9" style="text-align:center; padding:20px;">
+                    <td colspan="6" style="text-align:center; padding:20px;">
                         No Claims Found
                     </td>
                 </tr>
@@ -255,10 +265,10 @@ if (!$result) {
 
             <div class="edit-claim-field">
                 <label>Status</label>
-                <select id="clm_status" name="status"> 
-                    <option value="pending">Pending</option> 
-                    <option value="ready-for-claim">Ready for Claim</option> 
-                    <option value="claimed">Claimed</option> 
+                <select id="clm_status" name="status">
+                    <option value="pending">Pending</option>
+                    <option value="ready-for-claim">Ready for Claim</option>
+                    <option value="claimed">Claimed</option>
                 </select>
             </div>
 
@@ -310,5 +320,4 @@ if (!$result) {
             </div>
         </div>
     </div>
-</div>   
-
+</div>

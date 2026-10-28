@@ -1,11 +1,18 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
+session_start();
 
 header('Content-Type: application/json');
+
+if (empty($_SESSION['admin_id'])) {
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
 
 require_once __DIR__ . '/../config/api_config.php';
 require_once __DIR__ . '/../embeddings.php';
 
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     echo json_encode([
@@ -13,6 +20,12 @@ if ($conn->connect_error) {
         'error' => 'DB connection failed'
     ]);
     exit;
+}
+
+// Pagsamahin ang item name at description para kasama ang pangalan sa embedding
+function buildEmbeddingText($itemName, $description) {
+    $parts = array_filter([trim($itemName ?? ''), trim($description ?? '')], 'strlen');
+    return implode(' - ', $parts);
 }
 
 $id   = $_POST['id'] ?? null;
@@ -29,7 +42,7 @@ if (!$id || !$type) {
 if ($type === 'lost') {
 
     $stmt = $conn->prepare("
-        SELECT descriptionLostItem
+        SELECT item_name, descriptionLostItem
         FROM lost_items
         WHERE id = ?
         LIMIT 1
@@ -48,17 +61,18 @@ if ($type === 'lost') {
         exit;
     }
 
-    $description = trim($result['descriptionLostItem'] ?? '');
+    // Item name + description, e.g. "Wallet - black leather with PUP ID"
+    $text = buildEmbeddingText($result['item_name'], $result['descriptionLostItem']);
 
-    if ($description === '') {
+    if ($text === '') {
         echo json_encode([
             'success' => true,
-            'message' => 'No description to embed'
+            'message' => 'No item name or description to embed'
         ]);
         exit;
     }
 
-    $embedding = generateEmbedding($description);
+    $embedding = generateEmbedding($text);
 
     if (!$embedding) {
         echo json_encode([
@@ -92,7 +106,7 @@ if ($type === 'lost') {
 elseif ($type === 'found') {
 
     $stmt = $conn->prepare("
-        SELECT descriptionFoundItem
+        SELECT itemName_found, descriptionFoundItem
         FROM found_items
         WHERE id = ?
         LIMIT 1
@@ -111,17 +125,17 @@ elseif ($type === 'found') {
         exit;
     }
 
-    $description = trim($result['descriptionFoundItem'] ?? '');
+    $text = buildEmbeddingText($result['itemName_found'], $result['descriptionFoundItem']);
 
-    if ($description === '') {
+    if ($text === '') {
         echo json_encode([
             'success' => true,
-            'message' => 'No description to embed'
+            'message' => 'No item name or description to embed'
         ]);
         exit;
     }
 
-    $embedding = generateEmbedding($description);
+    $embedding = generateEmbedding($text);
 
     if (!$embedding) {
         echo json_encode([

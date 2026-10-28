@@ -1,8 +1,9 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
 header('Content-Type: application/json');
 
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 $data      = json_decode(file_get_contents('php://input'), true);
 $item_id   = intval($data['item_id'] ?? 0);

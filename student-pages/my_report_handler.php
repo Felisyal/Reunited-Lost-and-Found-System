@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
 header('Content-Type: application/json');
 
@@ -10,7 +11,7 @@ if (!isset($_SESSION['student_id'])) {
     exit;
 }
 
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     echo json_encode([
@@ -21,6 +22,8 @@ if ($conn->connect_error) {
 }
 
 $conn->set_charset("utf8mb4");
+
+require_once dirname(__DIR__) . '/config/audit.php';
 
 $user_id   = $_SESSION['student_id'];
 $user_type = $_SESSION['user_type'] ?? 'student';
@@ -203,6 +206,8 @@ if ($reportType === 'Lost') {
 }
 
 if ($stmt->execute()) {
+
+    logAudit($conn, 'REPORT_SUBMITTED', strtolower($reportType), $stmt->insert_id, "item=$itemName");
 
     echo json_encode([
         'success' => true,

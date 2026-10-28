@@ -1,8 +1,9 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
 header('Content-Type: application/json');
 
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     echo json_encode([
@@ -11,6 +12,8 @@ if ($conn->connect_error) {
     ]);
     exit;
 }
+
+require_once dirname(__DIR__) . '/config/audit.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -120,6 +123,8 @@ $stmt->bind_param(
 );
 
 if ($stmt->execute()) {
+
+    logAudit($conn, 'CLAIM_SUBMITTED', $item_type, $item_id, 'claim_id=' . $stmt->insert_id);
 
     echo json_encode([
         'success' => true,

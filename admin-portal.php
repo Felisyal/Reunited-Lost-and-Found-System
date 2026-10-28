@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/config/db.php';
 session_start();
 
-$host = "localhost";
-$dbUser = "root";
-$dbPass = "";
-$dbName = "reunited_db";
+$host = DB_HOST;
+$dbUser = DB_USER;
+$dbPass = DB_PASS;
+$dbName = DB_NAME;
 
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
@@ -90,6 +91,18 @@ $initials = strtoupper($firstInitial . $lastInitial);
                             <span class="logo-text">AI Matching</span>
                         </a>
                     </li>
+                    <li class="logo-link" data-page="analytics">
+                    <a href="javascript:void(0)">
+                        <img src="image/dashboard-admin.png" alt="analytics">
+                        <span class="logo-text">Analytics</span>
+                    </a>
+                </li>
+                <li class="logo-link" data-page="audit-trail">
+                    <a href="javascript:void(0)">
+                        <img src="image/report.png" alt="audit">
+                        <span class="logo-text">Audit Trail</span>
+                    </a>
+                </li>
                 </ul>
             </div>
         </div>
@@ -174,6 +187,7 @@ $initials = strtoupper($firstInitial . $lastInitial);
   <button class="chat-fab" onclick="toggleChat()">💬</button>
 </div>
 
-<script src="script.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="script.js?v=<?= filemtime(__DIR__ . '/script.js') ?>"></script>
 </body>
 </html>

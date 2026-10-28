@@ -1,10 +1,19 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+
+if (empty($_SESSION['admin_id'])) {
+    http_response_code(403);
+    exit('Unauthorized');
+}
+
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
+
+require_once dirname(__DIR__) . '/config/audit.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
     $id     = intval($_POST['id']);
@@ -38,6 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $stmt->execute();
     $stmt->close();
 
+    logAudit($conn, 'USER_EDITED', $role, $id, "name=$name, status=$status");
+
     echo "ok";
     exit;
 }
@@ -66,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username'], $_POST['e
             $table    = 'staff_register';
             $nameCol  = 'staff_name';
             $emailCol = 'staff_email';
-            $idCol    = 'staff_employee_id'; 
+            $idCol    = 'staff_employee_id';
             break;
         default:
             echo "error: Invalid role.";
@@ -86,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username'], $_POST['e
     }
 
     if ($stmt->execute()) {
+        logAudit($conn, 'USER_ADDED', $role, $user_id ?: $email, "name=$username, status=$status");
         echo "ok";
     } else {
         echo "error: " . $stmt->error;
@@ -114,10 +126,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             exit;
     }
 
+    if ($role === 'admin' && $id === (int)$_SESSION['admin_id']) {
+        echo "You cannot delete your own account.";
+        exit;
+    }
+
     $stmt = $conn->prepare("DELETE FROM $table WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $stmt->close();
+
+    logAudit($conn, 'USER_DELETED', $role, $id);
 
     echo "ok";
     exit;
@@ -147,7 +166,7 @@ $conn->close();
         <span class="sub-users-header">Manage system users and permission</span>
     </div>
     <button>+ Add Users</button>
-</div>  
+</div>
 
 <div class="table-users">
         <div class="table_header_users">
@@ -166,7 +185,7 @@ $conn->close();
                         <option value="">All Status</option>
                         <option value="Active">Active</option>
                         <option value="Inactive">Inactive</option>
-                    </select>   
+                    </select>
             </div>
         </div>
     <div class="users_tb_scroll">
@@ -221,7 +240,7 @@ $conn->close();
                     <?php endwhile; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="9" style="text-align:center; padding:20px;">
+                        <td colspan="5" style="text-align:center; padding:20px;">
                             No Users Found
                         </td>
                     </tr>
@@ -245,10 +264,10 @@ $conn->close();
         <form id="addUserForm">
             <label for="username">Username:</label>
             <input type="text" id="username" name="username" placeholder="Enter Username" required>
-            
+
             <label for="email">Email:</label>
             <input type="email" id="email" name="email" placeholder="Enter Email Address" required>
-            
+
             <label for="role">Role:</label>
             <select id="role" name="role" required>
                 <option value="" disabled selected>Select Role</option>
@@ -266,14 +285,14 @@ $conn->close();
                 <label for="department">Department:</label>
                 <input type="text" id="department" name="department" placeholder="Enter Department">
             </div>
-            
+
             <label for="status">Status:</label>
             <select id="userStatus" name="status" required>
                 <option value="" disabled selected>Select Status</option>
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
             </select>
-            
+
             <div class="add-user-actions">
                 <button type="submit">Add User</button>
             </div>

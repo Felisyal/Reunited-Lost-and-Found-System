@@ -190,7 +190,7 @@ function closeSuccessModal() {
 
     window.addEventListener('popstate', () => {
         const isStudent = document.body.id === 'student-portal';
-        const isStaff   = document.body.id === 'staff-faculty'; 
+        const isStaff   = document.body.id === 'staff-portal'; 
         const hash = window.location.hash.replace('#', '') || 
                     (isStudent ? 'browse-items' : (isStaff ? 'found-item' : 'dashboard-content'));
 
@@ -892,7 +892,7 @@ async function deleteUser(id, role) {
                 setupFoundImagePreview();
                 setupFoundForm();
                 setupReportForm();
-
+				initAnalytics();
                 setupAddUserModal();
                 
                 const form = document.getElementById('addUserForm');
@@ -1546,38 +1546,105 @@ function getReportDate(report) {
 
         if (!text) return;
 
-        if (!isLostAndFoundRelated(text)) {
-        const userMsg = document.createElement('div');
-        userMsg.className = 'msg user';
-        userMsg.textContent = text;
-        messages.appendChild(userMsg);
-
-        const botMsg = document.createElement('div');
-        botMsg.className = 'msg bot';
-        botMsg.textContent = "I can only help with lost and found related questions. Please ask me about lost or found items!";
-        messages.appendChild(botMsg);
-
-        input.value = '';
-        messages.scrollTop = messages.scrollHeight;
-        return; 
+        function addMessage(className, content) {
+            const msg = document.createElement('div');
+            msg.className = className;
+            msg.textContent = content;
+            messages.appendChild(msg);
+            return msg;
         }
 
-        const userMsg = document.createElement('div');
-        userMsg.className = 'msg user';
-        userMsg.textContent = text;
-        messages.appendChild(userMsg);
+        function addItemDetail(container, label, value) {
+            if (value === null || value === undefined || String(value).trim() === '') {
+                return;
+            }
 
+            const row = document.createElement('div');
+            row.className = 'bot-item-detail';
+
+            const labelEl = document.createElement('span');
+            labelEl.className = 'bot-item-label';
+            labelEl.textContent = label;
+
+            const valueEl = document.createElement('span');
+            valueEl.className = 'bot-item-value';
+            valueEl.textContent = String(value);
+
+            row.append(labelEl, valueEl);
+            container.appendChild(row);
+        }
+
+        function renderItemCard(item) {
+            const card = document.createElement('div');
+            card.className = 'bot-item-card';
+
+            const image = document.createElement('img');
+            image.className = 'bot-item-image';
+            image.alt = item.name
+                ? `Image of ${item.name}`
+                : 'Lost and found item';
+
+            const imagePath = item.image
+                ? String(item.image).replace(/^\/+/, '')
+                : '';
+
+            image.src = imagePath
+                ? '/' + imagePath
+                : '/Reunited/images/no-image.png';
+
+            image.onerror = function () {
+                this.onerror = null;
+                this.src = '/Reunited/images/no-image.png';
+            };
+
+            const content = document.createElement('div');
+            content.className = 'bot-item-content';
+
+            const name = document.createElement('h4');
+            name.className = 'bot-item-name';
+            name.textContent = item.name || 'Unnamed Item';
+
+            const details = document.createElement('div');
+            details.className = 'bot-item-details';
+
+            addItemDetail(details, 'Category', item.category);
+            addItemDetail(details, 'Location', item.location);
+            addItemDetail(details, 'Date', item.date);
+            addItemDetail(details, 'Status', item.status);
+
+            if (item.expiration_date) {
+                addItemDetail(details, 'Expires', item.expiration_date);
+            }
+
+    const header = document.createElement('div');
+    header.className = 'bot-item-header';
+
+    header.appendChild(name);
+    content.append(header, details);
+
+    card.append(image, content);
+
+            return card;
+        }
+
+        addMessage('msg user', text);
         input.value = '';
-
-        const typing = document.createElement('div');
-        typing.className = 'msg bot typing';
-        typing.textContent = 'Typing...';
-        messages.appendChild(typing);
-
         messages.scrollTop = messages.scrollHeight;
 
+        if (!isLostAndFoundRelated(text)) {
+            addMessage(
+                'msg bot',
+                'I can only help with lost and found related questions. Please ask me about lost or found items!'
+            );
+
+            messages.scrollTop = messages.scrollHeight;
+            return;
+        }
+
+        const typing = addMessage('msg bot typing', 'Typing...');
+
         try {
-            const res = await fetch('chat.php', {
+            const res = await fetch('assistant.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1585,68 +1652,56 @@ function getReportDate(report) {
                 body: JSON.stringify({ message: text })
             });
 
-            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(`Server returned ${res.status}`);
+            }
 
+            const data = await res.json();
             typing.remove();
 
             const botMsg = document.createElement('div');
             botMsg.className = 'msg bot';
-            if (data.items && data.items.length > 0) {
 
-                let replyText = data.reply;
-                let html = "<br><br>";
+            const replyEl = document.createElement('span');
+            replyEl.className = 'bot-reply-text';
+            botMsg.appendChild(replyEl);
+
+            if (data.items && data.items.length > 0) {
+                const itemsList = document.createElement('div');
+                itemsList.className = 'bot-items-list';
 
                 data.items.forEach(item => {
-                    let imageUrl = item.image
-                    ? '/' + item.image   
-                    : '/Reunited/images/no-image.png';
-
-                    html += `
-                        <div style="
-                            padding:10px;
-                            border:1px solid #ddd;
-                            margin-top:8px;
-                            border-radius:8px;
-                            background:#fff;
-                        ">
-                            <img
-                                src="${imageUrl}"
-                                style="
-                                    width:100%;
-                                    max-height:150px;
-                                    object-fit:cover;
-                                    border-radius:6px;
-                                    margin-bottom:8px;
-                                "
-
-                            >
-                            
-                            <b>${item.name}</b><br>
-                            Location: ${item.location}<br>
-                            Status: ${item.status}
-                        </div>
-                    `;
+                    itemsList.appendChild(renderItemCard(item));
                 });
 
-                botMsg.innerHTML = html; 
-                const replyEl = document.createElement('span');
-                botMsg.prepend(replyEl);
-                typeEffect(replyEl, replyText);
-
-            } else {
-                typeEffect(botMsg, data.reply);
+                botMsg.appendChild(itemsList);
             }
 
             messages.appendChild(botMsg);
+
+            if (typeof typeEffect === 'function') {
+                typeEffect(
+                    replyEl,
+                    data.reply || 'Here are the matching items.'
+                );
+            } else {
+                replyEl.textContent =
+                    data.reply || 'Here are the matching items.';
+            }
+
             messages.scrollTop = messages.scrollHeight;
 
         } catch (err) {
+            console.error('Reunited Assistant error:', err);
+
             typing.remove();
 
-            const errorMsg = document.createElement('div');
-            errorMsg.className = 'msg bot';
-            errorMsg.textContent = 'Error connecting to server.';
-            messages.appendChild(errorMsg);
+            addMessage(
+                'msg bot',
+                'Sorry, I could not connect to the server. Please try again.'
+            );
+
+            messages.scrollTop = messages.scrollHeight;
         }
     }
 
@@ -2076,7 +2131,7 @@ document.addEventListener('click', function(e) {
 
     console.log('Generate AI Matches clicked!');
 
-    const url = window.location.origin + '/Reunited/admin-pages/generate-matches.php';
+    const url = window.location.origin + '/admin-pages/generate-matches.php';
 
     console.log('FINAL URL:', url);
 
@@ -2140,7 +2195,7 @@ document.addEventListener('click', function (e) {
     document.querySelectorAll('.queue-modal').forEach(el => el.classList.remove('active'));
     card.classList.add('active');
 
-    const url = window.location.origin + '/Reunited/admin-pages/assisted-matching.php?ajax=1&match_id=' + matchId;
+    const url = 'admin-pages/assisted-matching.php?ajax=1&match_id=' + matchId;
 
     fetch(url, { cache: 'no-store' })
         .then(res => res.text())
@@ -2332,4 +2387,62 @@ function closeLogoutConfirm() {
     document.getElementById('logoutModalOverlay').style.display = 'none';
 }
 
+/* ---------- AUDIT TRAIL FILTER ---------- */
+document.addEventListener('input', e => { if (e.target.id === 'audit-search') filterAudit(); });
+document.addEventListener('change', e => { if (e.target.id === 'audit-action') filterAudit(); });
+
+function filterAudit() {
+    const s = (document.getElementById('audit-search')?.value || '').toLowerCase().trim();
+    const a = document.getElementById('audit-action')?.value || '';
+    document.querySelectorAll('#audit_tb tbody tr[data-action]').forEach(row => {
+        const okText = !s || row.textContent.toLowerCase().includes(s);
+        const okAction = !a || row.dataset.action === a;
+        row.style.display = (okText && okAction) ? '' : 'none';
+    });
+}
+
+/* ---------- ANALYTICS CHARTS ---------- */
+function initAnalytics() {
+    const el = document.getElementById('analyticsData');
+    if (!el || typeof Chart === 'undefined') return;
+
+    const d = JSON.parse(el.dataset.chart);
+    (window._anCharts || []).forEach(c => c.destroy());
+    window._anCharts = [];
+
+    const mk = (id, cfg) => {
+        const cv = document.getElementById(id);
+        if (cv) window._anCharts.push(new Chart(cv, cfg));
+    };
+    const base = { responsive: true, maintainAspectRatio: false };
+    const intAxis = { beginAtZero: true, ticks: { precision: 0 } };
+
+    mk('anTrend', {
+        type: 'line',
+        data: { labels: d.months, datasets: [
+            { label: 'Lost', data: d.lost, borderColor: '#7a1f1f', backgroundColor: '#7a1f1f', tension: 0.3 },
+            { label: 'Found', data: d.found, borderColor: '#d9a441', backgroundColor: '#d9a441', tension: 0.3 }
+        ]},
+        options: { ...base, scales: { y: intAxis } }
+    });
+
+    mk('anStatus', {
+        type: 'doughnut',
+        data: { labels: d.statusLabels, datasets: [{ data: d.statusData,
+            backgroundColor: ['#7a1f1f', '#d9a441', '#2e7d32', '#1976d2', '#9e9e9e', '#8e24aa'] }] },
+        options: base
+    });
+
+    mk('anCategory', {
+        type: 'bar',
+        data: { labels: d.catLabels, datasets: [{ label: 'Reports', data: d.catData, backgroundColor: '#7a1f1f' }] },
+        options: { ...base, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: intAxis } }
+    });
+
+    mk('anLocation', {
+        type: 'bar',
+        data: { labels: d.locLabels, datasets: [{ label: 'Reports', data: d.locData, backgroundColor: '#d9a441' }] },
+        options: { ...base, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: intAxis } }
+    });
+}
 

@@ -1,5 +1,6 @@
 
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
 
 header('Content-Type: application/json');
@@ -16,10 +17,10 @@ if (!$staff_employee_id || !$user_type) {
 }
 
 
-$host = "localhost";
-$dbUser = "root";
-$dbPass = "";
-$dbName = "reunited_db";
+$host = DB_HOST;
+$dbUser = DB_USER;
+$dbPass = DB_PASS;
+$dbName = DB_NAME;
 
 $conn = new mysqli($host, $dbUser, $dbPass, $dbName);
 
@@ -32,6 +33,8 @@ if ($conn->connect_error) {
 }
 
 $conn->set_charset("utf8mb4");
+
+require_once dirname(__DIR__) . '/config/audit.php';
 
 $reportType = trim($_POST['reportType'] ?? '');
 
@@ -184,6 +187,8 @@ if ($reportType === 'Lost') {
 
     if ($stmt->execute()) {
 
+        logAudit($conn, 'REPORT_SUBMITTED', 'lost', $stmt->insert_id, "item=$itemName");
+
         echo json_encode([
             "status" => "success",
             "message" => "Lost item report added successfully!",
@@ -246,6 +251,8 @@ elseif ($reportType === 'Found') {
     );
 
     if ($stmt->execute()) {
+
+        logAudit($conn, 'REPORT_SUBMITTED', 'found', $stmt->insert_id, "item=$itemName");
 
         echo json_encode([
             "status" => "success",

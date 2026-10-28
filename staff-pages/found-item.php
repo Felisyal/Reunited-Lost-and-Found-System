@@ -1,6 +1,7 @@
-<?php 
+<?php
+require_once dirname(__DIR__) . '/config/db.php'; 
 session_start(); 
-$conn = new mysqli("localhost", "root", "", "reunited_db"); 
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME); 
 
 if ($conn->connect_error) { 
     die("Connection failed: " . $conn->connect_error); 

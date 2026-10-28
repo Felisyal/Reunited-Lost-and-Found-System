@@ -1,6 +1,7 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
@@ -196,10 +197,13 @@ $conn->close();
 <div class="my-reports">
   <div class="wrap-report"> 
 
-     <?php if (!empty($items)): ?>
-      <?php foreach ($items as $item): ?>
+     <?php
+require_once dirname(__DIR__) . '/config/db.php'; if (!empty($items)): ?>
+      <?php
+require_once dirname(__DIR__) . '/config/db.php'; foreach ($items as $item): ?>
 
         <?php
+require_once dirname(__DIR__) . '/config/db.php';
           $status = strtolower($item['status'] ?? 'pending');
 
           if ($status === "pending") {
@@ -230,6 +234,7 @@ $conn->close();
           <div class="row-one">
               <div class="img-report">
                   <?php
+require_once dirname(__DIR__) . '/config/db.php';
                       $imageFile = !empty($item['image'])
                           ? trim($item['image'])
                           : '';
@@ -243,7 +248,8 @@ $conn->close();
                       }
                   ?>
 
-                  <?php if (!empty($imageFile) && file_exists($serverImagePath)): ?>
+                  <?php
+require_once dirname(__DIR__) . '/config/db.php'; if (!empty($imageFile) && file_exists($serverImagePath)): ?>
 
                       <img
                           src="<?= htmlspecialchars($browserImagePath) ?>"
@@ -251,7 +257,8 @@ $conn->close();
                           alt="<?= htmlspecialchars($item['report_type']) ?> Item"
                       >
 
-                  <?php else: ?>
+                  <?php
+require_once dirname(__DIR__) . '/config/db.php'; else: ?>
 
                       <img
                           src="staff-images/staff_item.png"
@@ -259,18 +266,23 @@ $conn->close();
                           alt="No Image"
                       >
 
-                  <?php endif; ?>
+                  <?php
+require_once dirname(__DIR__) . '/config/db.php'; endif; ?>
               </div>
                 <div class="column-one ">
                   <span class="rep-name">
-                    <strong><?php echo htmlspecialchars($item['item_name']); ?></strong>
+                    <strong><?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars($item['item_name']); ?></strong>
                   </span>
                   <span class="created-name"> Reported On
-                    <?php echo htmlspecialchars($item['created_at']); ?>
+                    <?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars($item['created_at']); ?>
                   </span>
                 </div>            
-            <span class="rep-badge browse-<?php echo str_replace(' ', '-', strtolower($item['status'] ?? 'pending')); ?>">
-              <?php echo htmlspecialchars(ucwords($item['status'] ?? 'pending')); ?>
+            <span class="rep-badge browse-<?php
+require_once dirname(__DIR__) . '/config/db.php'; echo str_replace(' ', '-', strtolower($item['status'] ?? 'pending')); ?>">
+              <?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars(ucwords($item['status'] ?? 'pending')); ?>
             </span>
           </div>
 
@@ -279,41 +291,52 @@ $conn->close();
             <div class="row-group">
               <div class="column-three">
                 <label>Category</label><br>
-                <span class="rep-category"><img src="staff-images/categories.png"><?php echo htmlspecialchars($item['category']); ?></span>
+                <span class="rep-category"><img src="staff-images/categories.png"><?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars($item['category']); ?></span>
               </div>
 
               <div class="column-three">
                 <label>Last Seen Date</label><br>
-                <span class="rep-date"><img src="staff-images/calendar.png"><?php echo htmlspecialchars($item['item_date']); ?></span>
+                <span class="rep-date"><img src="staff-images/calendar.png"><?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars($item['item_date']); ?></span>
               </div>
             </div>
 
             <div class="row-report-group">
               <div class="column-three">
                 <label>Last Seen Location</label>
-                <span class="rep-location"><img src="staff-images/location.png"><?php echo htmlspecialchars($item['location']); ?></span>
+                <span class="rep-location"><img src="staff-images/location.png"><?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars($item['location']); ?></span>
               </div>
 
               <div class="column-three">
                 <label>Expiration Date:</label>
-                <span class="expire-date"><img src="staff-images/warning.png"><?php echo date("Y-m-d", strtotime($item['expiration_date'])); ?>
+                <span class="expire-date"><img src="staff-images/warning.png"><?php
+require_once dirname(__DIR__) . '/config/db.php'; echo date("Y-m-d", strtotime($item['expiration_date'])); ?>
                 </span>
               </div>
             </div>
 
               <div class="column-four">
                 <label>Description:</label><br>
-                <span class="rep-description"><?php echo htmlspecialchars($item['description']); ?></span>
+                <span class="rep-description"><?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars($item['description']); ?></span>
               </div>
-              <div class="status-message <?php echo str_replace(' ', '-', $status); ?>">
-                <img src="<?php echo $icon; ?>" alt="status icon">
-                <span><?php echo htmlspecialchars($message); ?></span>
+              <div class="status-message <?php
+require_once dirname(__DIR__) . '/config/db.php'; echo str_replace(' ', '-', $status); ?>">
+                <img src="<?php
+require_once dirname(__DIR__) . '/config/db.php'; echo $icon; ?>" alt="status icon">
+                <span><?php
+require_once dirname(__DIR__) . '/config/db.php'; echo htmlspecialchars($message); ?></span>
               </div>
             </div>
         </div> 
-      <?php endforeach; ?>
-    <?php else: ?>
+      <?php
+require_once dirname(__DIR__) . '/config/db.php'; endforeach; ?>
+    <?php
+require_once dirname(__DIR__) . '/config/db.php'; else: ?>
       <p class="no-report-wrapper">No Report Found.</p>
-    <?php endif; ?>
+    <?php
+require_once dirname(__DIR__) . '/config/db.php'; endif; ?>
   </div>
 </div>

@@ -1,11 +1,15 @@
 <?php
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
-$dotenv->load();
-
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+
+// safeLoad() = hindi mag-crash kung walang .env sa server
+try {
+    Dotenv\Dotenv::createImmutable(__DIR__ . '/../config')->safeLoad();
+} catch (Throwable $e) {
+    error_log("Dotenv error: " . $e->getMessage());
+}
 
 function buildEmailTemplate($title, $bodyHtml) {
     return "
@@ -50,46 +54,73 @@ function buildEmailTemplate($title, $bodyHtml) {
     ";
 }
 
-function sendReadyForClaimEmail($toEmail, $toName, $itemName) {
-    if (empty($toEmail)) return false;
+/**
+ * Iisang lugar na nagpapadala ng email (PHPMailer + Gmail SMTP).
+ * Hindi nagka-crash ang page kapag pumalya; nagbabalik lang ng false.
+ */
+function reunitedSendMail($toEmail, $toName, $subject, $htmlBody) {
+    if (empty($toEmail)) {
+        error_log("Notification email skipped: recipient email is empty.");
+        return false;
+    }
+
+    $smtpUser = $_ENV['SMTP_USERNAME'] ?? '';
+    $smtpPass = $_ENV['SMTP_PASSWORD'] ?? '';
+
+    if ($smtpUser === '' || $smtpPass === '') {
+        error_log("Mailer skipped: SMTP_USERNAME / SMTP_PASSWORD not set (.env missing?).");
+        return false;
+    }
 
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = $_ENV['SMTP_USERNAME']; 
-        $mail->Password   = $_ENV['SMTP_PASSWORD'];       
+        $mail->Username   = $smtpUser;
+        $mail->Password   = $smtpPass;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
+        $mail->Timeout    = 25; // mabilis mag-fail kung naka-block ang SMTP
 
         $mail->setFrom('reunited.lostandfound@gmail.com', 'Reunited System');
         $mail->addAddress($toEmail, $toName);
 
+        $mail->CharSet = 'UTF-8';
         $mail->isHTML(true);
-        $mail->Subject = "Your item \"$itemName\" is Ready for Claim!";
-
-        $body = "
-            <p>Hi " . htmlspecialchars($toName) . ",</p>
-            <p>Good news! Your item <strong>" . htmlspecialchars($itemName) . "</strong>
-            has been matched and is now marked as:</p>
-            <p style='text-align:center; margin:20px 0;'>
-                <span style='display:inline-block; background-color:#800000; color:#ffffff; font-weight:600; font-size:13px; padding:8px 18px; border-radius:20px;'>
-                    READY FOR CLAIM
-                </span>
-            </p>
-            <p>Please visit the Reunited office to claim your item. Bring a valid ID or proof of ownership.</p>
-            <p style='margin-top:24px;'>— Reunited Admin Team</p>
-        ";
-
-        $mail->Body = buildEmailTemplate("Your item is ready for claim!", $body);
+        $mail->Subject = $subject;
+        $mail->Body    = $htmlBody;
 
         $mail->send();
         return true;
-    } catch (Exception $e) {
-        error_log("Mailer Error: " . $mail->ErrorInfo);
+    } catch (Throwable $e) {
+        error_log("Mailer Error: " . $mail->ErrorInfo . " | " . $e->getMessage());
         return false;
     }
+}
+
+function sendReadyForClaimEmail($toEmail, $toName, $itemName) {
+    $subject = "Your item \"$itemName\" is Ready for Claim!";
+
+    $body = "
+        <p>Hi " . htmlspecialchars($toName) . ",</p>
+        <p>Good news! Your item <strong>" . htmlspecialchars($itemName) . "</strong>
+        has been matched and is now marked as:</p>
+        <p style='text-align:center; margin:20px 0;'>
+            <span style='display:inline-block; background-color:#800000; color:#ffffff; font-weight:600; font-size:13px; padding:8px 18px; border-radius:20px;'>
+                READY FOR CLAIM
+            </span>
+        </p>
+        <p>Please visit the Reunited office to claim your item. Bring a valid ID or proof of ownership.</p>
+        <p style='margin-top:24px;'>— Reunited Admin Team</p>
+    ";
+
+    return reunitedSendMail(
+        $toEmail,
+        $toName,
+        $subject,
+        buildEmailTemplate("Your item is ready for claim!", $body)
+    );
 }
 
 function getStudentContact($conn, $studentId) {
@@ -118,84 +149,36 @@ function getReporterContact($conn, $reporterId) {
 }
 
 function sendMatchedToFinderEmail($toEmail, $toName, $itemName) {
-    if (empty($toEmail)) return false;
+    $subject = "Good news! Your found item \"$itemName\" has been matched";
 
-    $mail = new PHPMailer(true);
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $_ENV['SMTP_USERNAME'];
-        $mail->Password   = $_ENV['SMTP_PASSWORD']; 
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+    $body = "
+        <p>Hi " . htmlspecialchars($toName) . ",</p>
+        <p>The item you found — <strong>" . htmlspecialchars($itemName) . "</strong> —
+        has been matched with its owner and is now:</p>
+        <p style='text-align:center; margin:20px 0;'>
+            <span style='display:inline-block; background-color:#800000; color:#ffffff; font-weight:600; font-size:13px; padding:8px 18px; border-radius:20px;'>
+                READY FOR CLAIM
+            </span>
+        </p>
+        <p>Thank you for helping reunite it with its owner!</p>
+        <p style='margin-top:24px;'>— Reunited Admin Team</p>
+    ";
 
-        $mail->setFrom('reunited.lostandfound@gmail.com', 'Reunited System');
-        $mail->addAddress($toEmail, $toName);
-
-        $mail->isHTML(true);
-        $mail->Subject = "Good news! Your found item \"$itemName\" has been matched";
-
-        $body = "
-            <p>Hi " . htmlspecialchars($toName) . ",</p>
-            <p>The item you found — <strong>" . htmlspecialchars($itemName) . "</strong> —
-            has been matched with its owner and is now:</p>
-            <p style='text-align:center; margin:20px 0;'>
-                <span style='display:inline-block; background-color:#800000; color:#ffffff; font-weight:600; font-size:13px; padding:8px 18px; border-radius:20px;'>
-                    READY FOR CLAIM
-                </span>
-            </p>
-            <p>Thank you for helping reunite it with its owner!</p>
-            <p style='margin-top:24px;'>— Reunited Admin Team</p>
-        ";
-
-        $mail->Body = buildEmailTemplate("Your found item has been matched!", $body);
-
-        $mail->send();
-        return true;
-    } catch (Exception $e) {
-        error_log("Mailer Error: " . $mail->ErrorInfo);
-        return false;
-    }
+    return reunitedSendMail(
+        $toEmail,
+        $toName,
+        $subject,
+        buildEmailTemplate("Your found item has been matched!", $body)
+    );
 }
 
 function sendStyledEmail($toEmail, $toName, $subject, $title, $bodyHtml) {
-    if (empty($toEmail)) {
-        error_log("Notification email skipped: recipient email is empty.");
-        return false;
-    }
-
-    $mail = new PHPMailer(true);
-
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $_ENV['SMTP_USERNAME'];
-        $mail->Password   = $_ENV['SMTP_PASSWORD'];
-
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->setFrom(
-            'reunited.lostandfound@gmail.com',
-            'Reunited System'
-        );
-
-        $mail->addAddress($toEmail, $toName);
-
-        $mail->isHTML(true);
-        $mail->Subject = $subject;
-        $mail->Body = buildEmailTemplate($title, $bodyHtml);
-
-        $mail->send();
-
-        return true;
-
-    } catch (Exception $e) {
-        error_log("Mailer Error: " . $mail->ErrorInfo);
-        return false;
-    }
+    return reunitedSendMail(
+        $toEmail,
+        $toName,
+        $subject,
+        buildEmailTemplate($title, $bodyHtml)
+    );
 }
 
 

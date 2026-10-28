@@ -1,10 +1,16 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
 
-$host = "localhost";
-$dbUser = "root";
-$dbPass = "";
-$dbName = "reunited_db";
+if (empty($_SESSION['admin_id'])) {
+    http_response_code(403);
+    exit('Unauthorized');
+}
+
+$host = DB_HOST;
+$dbUser = DB_USER;
+$dbPass = DB_PASS;
+$dbName = DB_NAME;
 
 $conn = mysqli_connect($host, $dbUser, $dbPass, $dbName);
 
@@ -39,6 +45,7 @@ SELECT
     am.match_id,
     am.similarity_score,
     am.description_score,
+    am.name_score,
     am.category_score,
     am.location_score,
     am.status AS match_status,

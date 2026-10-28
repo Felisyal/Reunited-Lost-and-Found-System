@@ -45,6 +45,7 @@ Two AI features make it more than a digital logbook:
 - Approve or reject lost and found reports
 - Manage items and add items directly
 - **AI-Assisted Matching**: generate embeddings, run the matching engine and review the ranked candidate matches
+- See a score breakdown for each match (overall, description, item name, category and location)
 - Approve or reject AI-suggested matches
 - Process claim requests and mark items as **Ready for Claim** or **Claimed**
 - Manage student, staff and admin accounts
@@ -64,7 +65,8 @@ Two AI features make it more than a digital logbook:
 ### 1. Semantic Matching
 
 ```
-Report approved ──► Embedding generated (OpenAI text-embedding-3-small)
+Report approved ──► Embedding generated from "item name - description"
+                    (OpenAI text-embedding-3-small)
                          │
                          ▼
         Stored as JSON in lost_items / found_items.embedding
@@ -73,21 +75,40 @@ Report approved ──► Embedding generated (OpenAI text-embedding-3-small)
    Admin runs matching ──► every approved Lost × Found pair is scored
                          │
                          ▼
-        Pairs scoring ≥ 80% saved to ai_matches as "Pending"
+        Pairs scoring ≥ 70% saved to ai_matches as "Pending"
+        (a Pending match that drops below 70% becomes "Outdated")
                          │
                          ▼
           Admin reviews ──► Approve (notify users) / Reject
 ```
 
+The embedding text combines the item name and description, for example `Wallet - black leather with PUP ID`. This lets the model treat names with the same meaning, such as *pitaka* and *wallet*, as similar. Embeddings are created in `admin-pages/generate-item-embedding.php`.
+
 Each lost–found pair gets a **weighted overall score**:
 
-| Component    | Weight | How it is computed                                                  |
-|--------------|:------:|---------------------------------------------------------------------|
-| Description  | 60%    | Cosine similarity between the two description embeddings            |
-| Category     | 25%    | 100 if the categories match exactly, otherwise 0                    |
-| Location     | 15%    | 100 for an exact match, otherwise PHP `similar_text()` percentage   |
+| Component    | Weight | How it is computed                                                                 |
+|--------------|:------:|------------------------------------------------------------------------------------|
+| Description  | 45%    | Cosine similarity between the two embeddings (item name + description)            |
+| Item name    | 20%    | Word matching (*wallet* vs *black leather wallet* = 90%), or `similar_text()` for typos, whichever is higher |
+| Category     | 20%    | 100 if the categories match exactly, otherwise 0                                   |
+| Location     | 15%    | 100 for an exact match, otherwise PHP `similar_text()` percentage                  |
 
-Pairs with an overall score of **80% or higher** are flagged as candidate matches. Every match still needs an administrator's approval before anyone is notified. The weights and threshold are set in `admin-pages/generate-matches.php`.
+```
+Overall = (Description × 0.45) + (Item name × 0.20) + (Category × 0.20) + (Location × 0.15)
+```
+
+Pairs with an overall score of **70% or higher** are flagged as candidate matches. The threshold is set at 70% so real matches are not missed. Every match still needs an administrator's approval before anyone is notified, so a weak suggestion can simply be rejected. The weights and threshold are set in `admin-pages/generate-matches.php`.
+
+Each run recalculates every pair:
+
+| Match status | Meaning                                                                                  |
+|--------------|------------------------------------------------------------------------------------------|
+| `Pending`    | Scored 70% or higher and waiting for admin review                                        |
+| `Approved`   | Confirmed by an admin; both items move to **Ready for Claim**                            |
+| `Rejected`   | Declined by an admin                                                                     |
+| `Outdated`   | Was Pending, but now scores below 70% (for example after an item was edited). It is hidden from review and returns to `Pending` if its score reaches 70% again |
+
+Only `Pending` matches can be approved or rejected. Approved and rejected matches are never changed by a later run.
 
 ### 2. RAG Chatbot (Reunited Assistant)
 
@@ -108,7 +129,7 @@ User message
      Grounded reply + item cards (name, category, location, status, photo)
 ```
 
-The assistant answers only questions about lost and found items and politely declines anything else. Retrieval is handled in `chat.php` and the FAQ knowledge base is in `faqs.php`.
+The assistant answers only questions about lost and found items and politely declines anything else. Retrieval is handled in `assistant.php` and the FAQ knowledge base is in `faqs.php`.
 
 ---
 
@@ -134,7 +155,7 @@ Reunited-Lost-and-Found-System/
 ├── student-portal.php        # Student portal shell
 ├── staff-faculty.php         # Staff / faculty portal shell
 ├── admin-portal.php          # Admin dashboard shell
-├── chat.php                  # RAG chatbot endpoint (FAQ + DB retrieval → gpt-4.1-mini)
+├── assistant.php             # RAG chatbot endpoint (FAQ + DB retrieval → gpt-4.1-mini)
 ├── faqs.php                  # FAQ knowledge base used by the chatbot
 ├── embeddings.php            # generateEmbedding() and cosineSimilarity() helpers
 ├── forgot_password.php       # Sends password reset emails
@@ -143,8 +164,11 @@ Reunited-Lost-and-Found-System/
 ├── styles.css                # Global styles
 ├── composer.json / .lock     # PHP dependencies
 │
-├── config/
-│   └── api_config.example.php   # Template for the OpenAI API key
+├── config/                   # Blocked from web access by config/.htaccess
+│   ├── api_config.example.php   # Template for the OpenAI API key
+│   ├── db.php                   # Database credentials (not committed)
+│   ├── .env                     # SMTP credentials (not committed)
+│   └── audit.php                # logAudit() helper for the audit trail
 │
 ├── student-pages/            # Browse items, my reports, my claims, claims & comments
 │   └── uploads/              # Photos attached to lost item reports
@@ -200,7 +224,7 @@ The system uses these tables:
 | `student_register`, `staff_register`, `admin_register` | User accounts for each role           |
 | `lost_items`, `found_items`                | Item reports, including status, photo, expiration date and embedding |
 | `lost_items_reports`, `found_items_reports`| Report records and their review status            |
-| `ai_matches`                               | Candidate matches with overall, description, category and location scores |
+| `ai_matches`                               | Candidate matches with overall, description, item name, category and location scores, plus a status (`Pending`, `Approved`, `Rejected`, `Outdated`) |
 | `claims_table`                             | Claim requests                                    |
 | `item_comments`                            | Comments on item listings                         |
 | `remember_tokens`                          | "Remember me" login tokens                        |
@@ -232,7 +256,7 @@ define('OPENAI_API_KEY', 'sk-...your key...');
 
 ### Email (SMTP)
 
-Create a `.env` file in the project root:
+Create a `.env` file in the `config/` folder (`config/.env`):
 
 ```env
 SMTP_USERNAME=your-account@gmail.com
@@ -243,7 +267,31 @@ Use a **Gmail App Password** (Google Account → Security → 2-Step Verificatio
 
 ### Database connection
 
-The default connection is `localhost` / `root` / *(no password)* / `reunited_db`, which matches a fresh XAMPP install. If your setup is different, update the credentials in the PHP files that open a `mysqli` connection.
+Database credentials are in `config/db.php`, which is not committed. The file picks the connection automatically:
+
+- **On `localhost`**: `localhost` / `root` / *(no password)* / `reunited_db`, which matches a fresh XAMPP install
+- **On the live server**: the hosting provider's database credentials
+
+Create `config/db.php` with this structure and fill in your own values:
+
+```php
+<?php
+$isLocal = in_array($_SERVER['SERVER_NAME'] ?? 'localhost', ['localhost', '127.0.0.1'], true);
+
+if ($isLocal) {
+    define('DB_HOST', 'localhost');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+    define('DB_NAME', 'reunited_db');
+    define('BASE_URL', 'http://localhost/Reunited');
+} else {
+    define('DB_HOST', 'your-live-db-host');
+    define('DB_USER', 'your-live-db-user');
+    define('DB_PASS', 'your-live-db-password');
+    define('DB_NAME', 'your-live-db-name');
+    define('BASE_URL', 'https://your-live-domain');
+}
+```
 
 ### Item expiration (optional)
 
@@ -253,7 +301,7 @@ The default connection is `localhost` / `root` / *(no password)* / `reunited_db`
 php /path/to/Reunited/admin-pages/expire_items.php
 ```
 
-> `config/api_config.php`, `.env` and `vendor/` are listed in `.gitignore`. **Never commit your real keys or passwords.**
+> `config/db.php`, `config/api_config.php`, `.env` files, `vendor/`, debug/test scripts and the user `uploads/` folders are listed in `.gitignore`. **Never commit your real keys or passwords.**
 
 ---
 
@@ -282,7 +330,8 @@ Rejected     Expired (past expiration date)
 - Passwords are hashed and must pass strength rules before an account is created.
 - "Remember me" tokens are stored as hashes and use a selector/validator pattern.
 - Admin self-registration needs a secret registration code, stored only as a hash.
-- API keys and SMTP credentials are kept out of source control.
+- API keys, database credentials and SMTP credentials are kept out of source control, and the `config/` folder is blocked from web access.
+- Photos uploaded by users are not committed to the repository.
 - The chatbot receives only item details (name, category, location and status), never reporters' personal contact information. This follows the **Data Privacy Act of 2012 (RA 10173)**.
 
 ---

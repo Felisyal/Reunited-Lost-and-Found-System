@@ -1,23 +1,20 @@
 <?php
-
 date_default_timezone_set('Asia/Manila');
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-use Dotenv\Dotenv;
 
+require_once __DIR__ . '/config/db.php';
 require __DIR__ . '/vendor/autoload.php';
 
-$dotenv = Dotenv::createImmutable(__DIR__);
-$dotenv->load();
+// safeLoad() = hindi mag-crash kung walang .env sa server
+try {
+    Dotenv\Dotenv::createImmutable(__DIR__ . '/config')->safeLoad();
+} catch (Throwable $e) {
+    error_log("Dotenv error: " . $e->getMessage());
+}
 
-$host = "localhost";
-$dbUser = "root";
-$dbPass = "";
-$dbName = "reunited_db";
-
-$conn = new mysqli($host, $dbUser, $dbPass, $dbName);
-
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
@@ -28,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $email = trim($_POST['email'] ?? '');
-$role = trim($_POST['role'] ?? '');
+$role  = trim($_POST['role'] ?? '');
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     echo "
@@ -68,10 +65,8 @@ $stmt = $conn->prepare("
     WHERE $emailColumn = ?
     LIMIT 1
 ");
-
 $stmt->bind_param("s", $email);
 $stmt->execute();
-
 $result = $stmt->get_result();
 
 if ($result->num_rows === 0) {
@@ -81,7 +76,6 @@ if ($result->num_rows === 0) {
         window.location.href='index.php';
     </script>
     ";
-
     $stmt->close();
     $conn->close();
     exit;
@@ -89,10 +83,9 @@ if ($result->num_rows === 0) {
 
 $user = $result->fetch_assoc();
 $fullName = $user[$nameColumn];
-
 $stmt->close();
 
-$token = bin2hex(random_bytes(32));
+$token  = bin2hex(random_bytes(32));
 $expiry = date("Y-m-d H:i:s", strtotime("+1 hour"));
 
 $update = $conn->prepare("
@@ -100,7 +93,6 @@ $update = $conn->prepare("
     SET reset_token = ?, reset_expires = ?
     WHERE $emailColumn = ?
 ");
-
 $update->bind_param("sss", $token, $expiry, $email);
 
 if (!$update->execute()) {
@@ -110,156 +102,148 @@ if (!$update->execute()) {
         window.location.href='index.php';
     </script>
     ";
-
     $update->close();
     $conn->close();
     exit;
 }
-
 $update->close();
 
-$resetLink = "http://localhost/reunited/reset_password.php?token=" . urlencode($token) . "&role=" . urlencode($role);
+$resetLink = rtrim(BASE_URL, '/') . "/reset_password.php?token=" . urlencode($token) . "&role=" . urlencode($role);
 
-$safeName = htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');
+$safeName      = htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');
 $safeResetLink = htmlspecialchars($resetLink, ENT_QUOTES, 'UTF-8');
 
-$mail = new PHPMailer(true);
+$htmlBody = "
+<table role='presentation' width='100%' cellpadding='0' cellspacing='0'
+style='background-color:#f4f4f7; padding:32px 0;'>
+<tr>
+<td align='center'>
+<table role='presentation' width='600' cellpadding='0' cellspacing='0'
+style='background-color:#ffffff; border-radius:10px; overflow:hidden;
+font-family:Segoe UI, Arial, sans-serif;
+box-shadow:0 2px 8px rgba(0,0,0,0.06);'>
 
-try {
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = $_ENV['SMTP_USERNAME'];
-    $mail->Password = $_ENV['SMTP_PASSWORD'];
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = 587;
-    $mail->SMTPDebug = 0;
+<tr>
+<td style='background-color:#ffffff; padding:32px 40px 24px 40px; text-align:center;'>
+<div style='color:#800000; font-size:26px; font-weight:700; letter-spacing:0.5px;'>
+REUNITED
+</div>
+<div style='color:#800000; font-size:16px; margin-top:4px;'>
+Lost &amp; Found System — PUP Parañaque
+</div>
+</td>
+</tr>
 
-    $mail->setFrom(
-        'reunited.lostandfound@gmail.com',
-        'Reunited System'
-    );
+<tr>
+<td style='padding:28px 40px 0 40px;'>
+<h2 style='margin:0; font-size:22px; color:#800000;'>
+Reset your password
+</h2>
+</td>
+</tr>
 
-    $mail->addAddress($email, $fullName);
+<tr>
+<td style='padding:20px 40px 32px 40px; font-size:16px; line-height:1.6; color:#444444;'>
 
-    $mail->isHTML(true);
-    $mail->CharSet = 'UTF-8';
-    $mail->Subject = 'Reset your Reunited password';
+<p style='margin:0 0 20px 0;'>Hi {$safeName},</p>
 
-    $mail->Body = "
-        <table role='presentation' width='100%' cellpadding='0' cellspacing='0'
-            style='background-color:#f4f4f7; padding:32px 0;'>
-            <tr>
-                <td align='center'>
-                    <table role='presentation' width='600' cellpadding='0' cellspacing='0'
-                        style='background-color:#ffffff; border-radius:10px; overflow:hidden;
-                        font-family:Segoe UI, Arial, sans-serif;
-                        box-shadow:0 2px 8px rgba(0,0,0,0.06);'>
+<p style='margin:0 0 20px 0;'>
+We received a request to reset the password for your
+<strong>Reunited</strong> account.
+</p>
 
-                        <tr>
-                            <td style='background-color:#ffffff; padding:32px 40px 24px 40px; text-align:center;'>
-                                <div style='color:#800000; font-size:26px; font-weight:700; letter-spacing:0.5px;'>
-                                    REUNITED
-                                </div>
+<p style='margin:0 0 20px 0;'>
+Click the button below to reset your password:
+</p>
 
-                                <div style='color:#800000; font-size:16px; margin-top:4px;'>
-                                    Lost &amp; Found System — PUP Parañaque
-                                </div>
-                            </td>
-                        </tr>
+<p style='text-align:center; margin:28px 0;'>
+<a href='{$safeResetLink}'
+style='display:inline-block; background-color:#800000; color:#ffffff;
+font-weight:600; font-size:13px; padding:10px 20px;
+border-radius:20px; text-decoration:none;'>
+RESET PASSWORD
+</a>
+</p>
 
-                        <tr>
-                            <td style='padding:28px 40px 0 40px;'>
-                                <h2 style='margin:0; font-size:22px; color:#800000;'>
-                                    Reset your password
-                                </h2>
-                            </td>
-                        </tr>
+<p style='margin:0 0 20px 0;'>
+This password reset link will expire in <strong>1 hour</strong>.
+</p>
 
-                        <tr>
-                            <td style='padding:20px 40px 32px 40px; font-size:16px; line-height:1.6; color:#444444;'>
+<p style='margin:0 0 20px 0;'>
+If you did not request a password reset, you can safely ignore this email.
+</p>
 
-                                <p style='margin:0 0 20px 0;'>
-                                    Hi {$safeName},
-                                </p>
+<p style='margin-top:28px;'>— Reunited Admin Team</p>
 
-                                <p style='margin:0 0 20px 0;'>
-                                    We received a request to reset the password for your
-                                    <strong>Reunited</strong> account.
-                                </p>
+</td>
+</tr>
 
-                                <p style='margin:0 0 20px 0;'>
-                                    Click the button below to reset your password:
-                                </p>
+<tr>
+<td style='background-color:#f4f4f7; padding:16px 32px;
+text-align:center; font-size:11px; color:#999999;'>
+This is an automated message from the Reunited system.
+Please do not reply to this email.
+</td>
+</tr>
 
-                                <p style='text-align:center; margin:28px 0;'>
-                                    <a href='{$safeResetLink}'
-                                        style='
-                                            display:inline-block;
-                                            background-color:#800000;
-                                            color:#ffffff;
-                                            font-weight:600;
-                                            font-size:13px;
-                                            padding:10px 20px;
-                                            border-radius:20px;
-                                            text-decoration:none;
-                                        '>
-                                        RESET PASSWORD
-                                    </a>
-                                </p>
+</table>
+</td>
+</tr>
+</table>
+";
 
-                                <p style='margin:0 0 20px 0;'>
-                                    This password reset link will expire in
-                                    <strong>1 hour</strong>.
-                                </p>
+$textBody =
+    "Hi {$fullName},\n\n" .
+    "We received a request to reset the password for your Reunited account.\n\n" .
+    "Reset your password using this link:\n" .
+    "{$resetLink}\n\n" .
+    "This password reset link will expire in 1 hour.\n\n" .
+    "If you did not request a password reset, you can safely ignore this email.\n\n" .
+    "— Reunited Admin Team";
 
-                                <p style='margin:0 0 20px 0;'>
-                                    If you did not request a password reset,
-                                    you can safely ignore this email.
-                                </p>
+$sent = false;
+$smtpUser = $_ENV['SMTP_USERNAME'] ?? '';
+$smtpPass = $_ENV['SMTP_PASSWORD'] ?? '';
 
-                                <p style='margin-top:28px;'>
-                                    — Reunited Admin Team
-                                </p>
+if ($smtpUser !== '' && $smtpPass !== '') {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $smtpUser;
+        $mail->Password   = $smtpPass;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+        $mail->Timeout    = 25; // mabilis mag-fail kung naka-block ang SMTP
+        $mail->SMTPDebug  = 0;
 
-                            </td>
-                        </tr>
+        $mail->setFrom('reunited.lostandfound@gmail.com', 'Reunited System');
+        $mail->addAddress($email, $fullName);
 
-                        <tr>
-                            <td style='background-color:#f4f4f7; padding:16px 32px;
-                                text-align:center; font-size:11px; color:#999999;'>
-                                This is an automated message from the Reunited system.
-                                Please do not reply to this email.
-                            </td>
-                        </tr>
+        $mail->CharSet = 'UTF-8';
+        $mail->isHTML(true);
+        $mail->Subject = 'Reset your Reunited password';
+        $mail->Body    = $htmlBody;
+        $mail->AltBody = $textBody;
 
-                    </table>
-                </td>
-            </tr>
-        </table>
-    ";
+        $mail->send();
+        $sent = true;
+    } catch (Throwable $e) {
+        error_log("Password Reset Mailer Error: " . $mail->ErrorInfo . " | " . $e->getMessage());
+    }
+} else {
+    error_log("Password Reset skipped: SMTP_USERNAME / SMTP_PASSWORD not set (.env missing?).");
+}
 
-    $mail->AltBody =
-        "Hi {$fullName},\n\n" .
-        "We received a request to reset the password for your Reunited account.\n\n" .
-        "Reset your password using this link:\n" .
-        "{$resetLink}\n\n" .
-        "This password reset link will expire in 1 hour.\n\n" .
-        "If you did not request a password reset, you can safely ignore this email.\n\n" .
-        "— Reunited Admin Team";
-
-    $mail->send();
-
+if ($sent) {
     echo "
     <script>
         alert('Password reset link sent to your Gmail.');
         window.location.href='index.php';
     </script>
     ";
-
-} catch (Exception $e) {
-    error_log("Password Reset Mailer Error: " . $mail->ErrorInfo);
-
+} else {
     echo "
     <script>
         alert('Unable to send the password reset email. Please try again.');
@@ -269,5 +253,4 @@ try {
 }
 
 $conn->close();
-
 ?>

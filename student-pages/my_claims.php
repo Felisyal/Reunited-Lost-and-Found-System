@@ -1,6 +1,7 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
@@ -80,9 +81,11 @@ $result = $stmt->get_result();
     </div>
 </div>
 
-<?php while ($item = $result->fetch_assoc()): ?>
+<?php
+require_once dirname(__DIR__) . '/config/db.php'; while ($item = $result->fetch_assoc()): ?>
 
-<?php 
+<?php
+require_once dirname(__DIR__) . '/config/db.php'; 
 $status = strtolower(trim($item['status']));
 
 if ($status === "pending") {
@@ -108,6 +111,7 @@ if ($status === "pending") {
         <div class="claim-top">
             <div class="claim-img">
                 <?php
+require_once dirname(__DIR__) . '/config/db.php';
                     $imageFile = !empty($item['item_image'])
                         ? trim($item['item_image'])
                         : '';
@@ -116,15 +120,18 @@ if ($status === "pending") {
                     $browserImagePath = "staff-pages/uploads/" . $imageFile;
                 ?>
 
-                <?php if (!empty($imageFile) && file_exists($serverImagePath)): ?>
+                <?php
+require_once dirname(__DIR__) . '/config/db.php'; if (!empty($imageFile) && file_exists($serverImagePath)): ?>
                     <img src="<?= htmlspecialchars($browserImagePath) ?>"
                         alt="Item Image"
                         width="120">
-                <?php else: ?>
+                <?php
+require_once dirname(__DIR__) . '/config/db.php'; else: ?>
                     <img src="staff-images/staff_item.png"
                         alt="No Image"
                         width="120">
-                <?php endif; ?>
+                <?php
+require_once dirname(__DIR__) . '/config/db.php'; endif; ?>
             </div>
 
             <div class="claim-info">
@@ -133,7 +140,8 @@ if ($status === "pending") {
             </div>
 
             <div class="claim-message status-<?= htmlspecialchars($status) ?>">  
-                <?php  
+                <?php
+require_once dirname(__DIR__) . '/config/db.php';  
                 if ($status === "pending") { 
                     echo "Pending"; 
                 } elseif ($status === "ready-for-claim") { 
@@ -160,4 +168,5 @@ if ($status === "pending") {
 
 </div>
 
-<?php endwhile; ?>
+<?php
+require_once dirname(__DIR__) . '/config/db.php'; endwhile; ?>

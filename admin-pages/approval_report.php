@@ -1,13 +1,20 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 session_start();
+
+   if (empty($_SESSION['admin_id'])) {
+       echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+       exit;
+   }
 
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../config/api_config.php';
 require_once __DIR__ . '/sync_functions.php';
 require_once __DIR__ . '/mailer.php';
+require_once dirname(__DIR__) . '/config/audit.php';
 
-$conn = new mysqli("localhost", "root", "", "reunited_db");
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 if ($conn->connect_error) {
     echo json_encode([
@@ -136,6 +143,8 @@ if ($type === "lost") {
         }
 
         $conn->commit();
+
+		logAudit($conn, 'REPORT_APPROVED', 'lost', $id, "item_id=$newId");
 
         try {
             notifyReportStatus($conn, 'lost', $id, 'approved');
@@ -274,7 +283,9 @@ elseif ($type === "found") {
         }
 
         $conn->commit();
-        
+
+        logAudit($conn, 'REPORT_APPROVED', 'found', $id, "item_id=$newId");
+
         try {
             notifyReportStatus($conn, 'found', $id, 'approved');
         } catch (Throwable $e) {

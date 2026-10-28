@@ -6,7 +6,7 @@
       background-image: url("image/pup1.jpg");
       background-size: cover;
       background-position: center;
-      background-color: red;
+      background-color: #2f2f2f;
     }
 
     .logo-pup {
@@ -7501,6 +7501,158 @@ input[type="file"] {
 
 .chat-fab:hover { transform: scale(1.08); }
 
+/* Reunited Assistant item response */
+.msg.bot {
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+
+.bot-reply-text {
+    display: block;
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+}
+
+.bot-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.bot-item-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #e2e2e2;
+    border-radius: 12px;
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.06);
+}
+
+.bot-item-image {
+    display: block;
+    width: 100%;
+    height: 155px;
+    object-fit: cover;
+    background: #f8f8f8;
+    border-bottom: 1px solid #eee;
+}
+
+.bot-item-content {
+    padding: 12px;
+}
+
+.bot-item-name {
+    margin: 0 0 8px;
+    color: #333;
+    font-size: 15px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.bot-item-badge {
+    display: inline-block;
+    padding: 4px 9px;
+    margin-bottom: 10px;
+    border-radius: 20px;
+    background: #f5e6e6;
+    color: #800f12;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.bot-item-details {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.bot-item-detail {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.bot-item-label {
+    flex: 0 0 68px;
+    color: #777;
+    font-weight: 600;
+}
+
+.bot-item-value {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: #333;
+}
+
+.bot-item-empty {
+    padding: 12px;
+    border-radius: 8px;
+    background: #f8f8f8;
+    color: #666;
+    font-size: 13px;
+}
+
+.bot-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.bot-item-name {
+    margin: 0;
+    color: #333;
+    font-size: 15px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    flex: 1;
+    min-width: 0;
+}
+
+.bot-item-badge {
+    flex-shrink: 0;
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #f5e6e6;
+    color: #800f12;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: capitalize;
+    margin: 0;
+}
+
+
+@media (max-width: 480px) {
+    .bot-item-image {
+        height: 130px;
+    }
+
+    .bot-item-content {
+        padding: 10px;
+    }
+
+    .bot-item-name {
+        font-size: 14px;
+    }
+
+    .bot-item-detail {
+        font-size: 12px;
+    }
+}
 
 /* ALERTS AND NOTIFICATIONS */
 .toast-notif {

@@ -1,11 +1,12 @@
 <?php
+require_once dirname(__DIR__) . '/config/db.php';
 
 session_start();
 
-$host = "localhost";
-$dbUser = "root";
-$dbPass = "";
-$dbName = "reunited_db";
+$host = DB_HOST;
+$dbUser = DB_USER;
+$dbPass = DB_PASS;
+$dbName = DB_NAME;
 
 $conn = new mysqli($host, $dbUser, $dbPass, $dbName);
 

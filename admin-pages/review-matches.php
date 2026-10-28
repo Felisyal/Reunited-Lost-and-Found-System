@@ -115,6 +115,12 @@ if($selectedMatch) ?>
                 <span class="value"><?= round($selectedMatch['description_score']) ?>%</span>
             </div>
             <div class="analysis-row">
+                <span class="label">Item Name</span>
+                <?php $nameScore = $selectedMatch['name_score']; ?>
+                <div class="bar"><div class="fill" style="width:<?= $nameScore === null ? 0 : round($nameScore) ?>%"></div></div>
+                <span class="value"><?= $nameScore === null ? '—' : round($nameScore) . '%' ?></span>
+            </div>
+            <div class="analysis-row">
                 <span class="label">Category</span>
                 <div class="bar"><div class="fill" style="width:<?= round($selectedMatch['category_score']) ?>%"></div></div>
                 <span class="value"><?= round($selectedMatch['category_score']) ?>%</span>
